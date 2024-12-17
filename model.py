@@ -4,12 +4,13 @@ import torch.optim as optim
 import torchvision
 import torchvision.transforms as transforms
 import matplotlib.pyplot as plt
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, random_split
 from sklearn.metrics import accuracy_score, recall_score, precision_score
+from sklearn.metrics import confusion_matrix,ConfusionMatrixDisplay
 
 torch.manual_seed(42)
 
-# Step 1: Load the Fashion-MNIST dataset
+
 transform = transforms.Compose(
     [transforms.Resize((28,28)),
     transforms.ToTensor(),
@@ -19,14 +20,16 @@ transform = transforms.Compose(
 # Load training and test datasets
 dataset = torchvision.datasets.FashionMNIST(root='./data', train=True, download=True, transform=transform)
 
-train_size = int(0.8 *len(dataset))
-test_size = len(dataset)- train_size
+train_size = int(0.7 * len(dataset))  # 70% for training
+valid_size = int(0.15 * len(dataset))  # 15% for validation
+test_size = len(dataset) - train_size - valid_size  # Remaining 15% for test
 
-test_set, train_set = torch.utils.data.random_split(dataset, [train_size,test_size ])
+train_set, valid_set, test_set = random_split(dataset, [train_size, valid_size, test_size])
 
-trainloader = torch.utils.data.DataLoader(train_set, batch_size=64, shuffle=True)
-testloader = torch.utils.data.DataLoader(test_set, batch_size=64, shuffle=False)
-
+# Step 2: Create DataLoaders for each split
+trainloader = DataLoader(train_set, batch_size=64, shuffle=True)
+validloader = DataLoader(valid_set, batch_size=64, shuffle=False)  # Validation loader
+testloader = DataLoader(test_set, batch_size=64, shuffle=False)
 
 dataiter = iter(trainloader)
 images, labels = next(dataiter)
@@ -85,7 +88,34 @@ for epoch in range(num_epochs):
 
 print("Finished Training")
 
+# Validation phase after training
+model.eval()
+valid_ground_truth = []
+valid_prediction = []
 
+with torch.no_grad():
+    for inputs, labels in validloader:
+        inputs, labels = inputs.to(device), labels.to(device)
+
+        outputs = model(inputs)
+        _, predicted = torch.max(outputs, 1)  # Get class with max probability
+
+        valid_ground_truth += labels.tolist()
+        valid_prediction += predicted.cpu().tolist()
+
+# Calculate metrics for the validation set
+valid_accuracy = accuracy_score(valid_ground_truth, valid_prediction)
+valid_recall = recall_score(valid_ground_truth, valid_prediction, average='weighted')
+valid_precision = precision_score(valid_ground_truth, valid_prediction, average='weighted')
+
+print("Validation Results:")
+print(f"Accuracy: {valid_accuracy:.4f}")
+print(f"Recall: {valid_recall:.4f}")
+print(f"Precision: {valid_precision:.4f}")
+
+
+
+#testing
 ground_truth = []
 prediction = []
 model.eval()
@@ -103,6 +133,11 @@ accuracy = accuracy_score(ground_truth, prediction)
 recall = recall_score(ground_truth, prediction, average='weighted')
 precision = precision_score(ground_truth, prediction, average='weighted')
 
+cm = confusion_matrix(ground_truth, prediction)
+
+
+
+print(f'Confusion Matrix: {cm}')
 print(f'Accuracy: {accuracy}')
 print(f'Recall: {recall}')
 print(f'Precision: {precision}')
